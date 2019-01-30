@@ -4,7 +4,11 @@ import os
 import sys
 import threading
 import weakref
-import _thread
+
+try:
+    import thread
+except ImportError:
+    import _thread as thread
 
 
 console = logging.getLogger(__name__)
