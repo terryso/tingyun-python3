@@ -64,7 +64,7 @@ def env_config():
         uwsgi = sys.modules['uwsgi']
 
         if hasattr(uwsgi, 'version'):
-            dispatcher["Dispatcher Version"] = uwsgi.version
+            dispatcher["Dispatcher Version"] = str(uwsgi.version)
 
     env.update(dispatcher)
 
