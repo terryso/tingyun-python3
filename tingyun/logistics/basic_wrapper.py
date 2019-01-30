@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 
 """ define some logistics wrapper
 
@@ -6,14 +7,13 @@
 import logging
 import sys
 
-from tingyun.packages.wrapt.wrappers import (FunctionWrapper as _FunctionWrapper)
+from tingyun.packages.wrapt.wrappers import FunctionWrapper as _FunctionWrapper
 from tingyun.packages.wrapt.wrappers import BoundFunctionWrapper as _BoundFunctionWrapper
 
 from tingyun.packages.wrapt.wrappers import wrap_object as _wrap_object, wrap_function_wrapper as _wrap_function_wrapper
 from tingyun.packages.wrapt.wrappers import function_wrapper as _function_wrapper
 
 console = logging.getLogger(__name__)
-
 
 # ----------------------------------------------------------------------------
 # following method are used the wrapt module instead.

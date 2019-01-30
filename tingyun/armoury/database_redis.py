@@ -11,7 +11,7 @@ rewrite_command = ['setex', 'lrem', 'zadd']
 basic_command = [
     'append', 'bgrewriteaof', 'bgsave', 'bitcount', 'bitop', 'bitpos', 'blpop', 'brpop', 'brpoplpush', 'client_getname',
     'client_kill', 'client_list', 'client_setname', 'config_get', 'config_resetstat', 'config_rewrite', 'config_set',
-    'connection_pool', 'dbsize', 'debug_object', 'decr', 'delete', 'dump', 'echo', 'eval', 'evalsha', 'execute_command',
+    'connection_pool', 'dbsize', 'debug_object', 'decr', 'delete', 'dump', 'echo', 'eval', 'evalsha',
     'exists', 'expire', 'expireat', 'flushall', 'flushdb', 'from_url', 'get', 'getbit', 'getrange', 'getset', 'hdel',
     'hexists', 'hget', 'hgetall', 'hincrby', 'hincrbyfloat', 'hkeys', 'hlen', 'hmget', 'hmset', 'hscan', 'hscan_iter',
     'hset', 'hsetnx', 'hvals', 'incr', 'incrby', 'incrbyfloat', 'info', 'keys', 'lastsave', 'lindex', 'linsert', 'llen',
@@ -27,15 +27,6 @@ basic_command = [
     'zcount', 'zincrby', 'zinterstore', 'zlexcount', 'zrange', 'zrangebylex', 'zrangebyscore', 'zrank',
     'zrem', 'zremrangebylex', 'zremrangebyrank', 'zremrangebyscore', 'zrevrangebyscore',
     ]
-
-
-def detect_connection(module):
-    """
-    :param module:
-    :return:
-    """
-    if hasattr(module, 'Connection') and hasattr(module.Connection, 'connect'):
-        wrap_function_trace(module, "Connection.connect", name="connect")
 
 
 def detect_client_operation(module):

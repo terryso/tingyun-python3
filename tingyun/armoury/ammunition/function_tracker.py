@@ -25,6 +25,7 @@ class FunctionTracker(Timer):
         self.group = group or 'Function'
         self.label = label
         self.params = params
+        self.exception = []
 
         self.stack_trace = None
 
@@ -33,7 +34,7 @@ class FunctionTracker(Timer):
         """
         return FunctionNode(group=self.group, name=self.name, children=self.children, start_time=self.start_time,
                             end_time=self.end_time, duration=self.duration, exclusive=self.exclusive,
-                            params=self.params, stack_trace=self.stack_trace)
+                            params=self.params, stack_trace=self.stack_trace, exception=self.exception)
 
     def finalize_data(self):
         """create all the data if need
@@ -74,8 +75,12 @@ def function_trace_wrapper(wrapped, name=None, group=None, label=None, params=No
             else:
                 _group = group(*args, **kwargs)
 
-        with FunctionTracker(tracker, _name, _group, _label, _params):
-            return wrapped(*args, **kwargs)
+        with FunctionTracker(tracker, _name, _group, _label, _params) as ft:
+            try:
+                return wrapped(*args, **kwargs)
+            except:
+                ft.exception.append(tracker.record_exception(is_error=False))
+                raise
 
     def literal_wrapper(wrapped, instance, args, kwargs):
         tracker = current_tracker()
@@ -85,8 +90,12 @@ def function_trace_wrapper(wrapped, name=None, group=None, label=None, params=No
 
         _name = name or callable_name(wrapped)
 
-        with FunctionTracker(tracker, _name, group, label, params):
-            return wrapped(*args, **kwargs)
+        with FunctionTracker(tracker, _name, group, label, params) as ft:
+            try:
+                return wrapped(*args, **kwargs)
+            except:
+                ft.exception.append(tracker.record_exception(is_error=False))
+                raise
 
     if callable(name) or callable(group) or callable(label) or callable(params):
         return FunctionWrapper(wrapped, dynamic_wrapper)

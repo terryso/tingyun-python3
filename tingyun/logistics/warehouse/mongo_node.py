@@ -4,11 +4,13 @@
 
 """
 
+import logging
 from collections import namedtuple
 from tingyun.logistics.attribution import TimeMetric, node_start_time, node_end_time
 
 _MONGO_NODE = namedtuple("_MONGO_NODE", ['schema', 'method', 'children', 'start_time', 'end_time', 'duration',
-                                         'exclusive', 'host', 'port'])
+                                         'exclusive', 'host', 'port', 'exception'])
+console = logging.getLogger(__name__)
 
 
 class MongoNode(_MONGO_NODE):
@@ -74,12 +76,14 @@ class MongoNode(_MONGO_NODE):
         children = []
         call_count = 1
         class_name = ""
-        method_name = root.name
         root.trace_node_count += 1
         start_time = node_start_time(root, self)
         end_time = node_end_time(root, self)
         db, collection, _ = self.parse_db(self.schema)
         metric_name = "MongoDB/%s:%s%%2F%s%%2F%s/%s" % (self.host, self.port, db, collection, method)
-        call_url = metric_name
+
+        # exception不存在，不能加入该key值
+        if self.exception:
+            params['exception'] = root.parse_exception_detail(self.exception)
 
         return [start_time, end_time, metric_name, "", call_count, class_name, method, params, children]

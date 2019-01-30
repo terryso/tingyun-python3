@@ -78,7 +78,8 @@ class Tracer(Tracker):
         # 2、MQ或者其他
         tingyun_id = 'HTTP_X_TINGYUN_ID'
         tingyun_id_2 = 'TingyunID'
-        tingyun_headers = environ.get(tingyun_id) or environ.get(tingyun_id_2)
+        tingyun_id_3 = 'X-Tingyun-Id'
+        tingyun_headers = environ.get(tingyun_id) or environ.get(tingyun_id_2) or environ.get(tingyun_id_3)
 
         if not tingyun_headers:
             return

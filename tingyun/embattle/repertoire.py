@@ -83,8 +83,6 @@ def defined_repertoire():
 
         # nosql redis
         "redis": [
-            {"target": "redis.connection", 'hook_func': 'detect_connection',
-             'hook_module': 'tingyun.armoury.database_redis'},
             {"target": "redis.client", 'hook_func': 'detect_client_operation',
              'hook_module': 'tingyun.armoury.database_redis'},
         ],

@@ -64,7 +64,7 @@ def env_config():
         uwsgi = sys.modules['uwsgi']
 
         if hasattr(uwsgi, 'version'):
-            dispatcher["Dispatcher Version"] = str(uwsgi.version)
+            dispatcher["Dispatcher Version"] = uwsgi.version
 
     env.update(dispatcher)
 
@@ -91,7 +91,3 @@ def env_config():
     env['Plugin List'] = ','.join(tingyun)
 
     return env
-
-
-if __name__ == "__main__":
-    print("self test: %s" % env_config())

@@ -50,6 +50,12 @@ class MQNode(_MQNode):
             for metric in child.time_metrics(root, self):
                 yield metric
 
+    def action_metrics(self, root, parent):
+        """其作为根节点，需要提供webaction数据，否则最上层将取到错误值
+        :return:
+        """
+        yield TimeMetric(name=root.path, scope="", duration=self.duration, exclusive=self.duration)
+
     def trace_node(self, root):
         """作为调用方时，txData无法回传，此时需要将externalId往服务端传递
         :param root:

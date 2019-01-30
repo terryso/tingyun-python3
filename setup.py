@@ -18,11 +18,22 @@ import sys
 
 version = __import__('tingyun').get_version()
 _copyright = '(C) Copyright 2007-2017 networkbench Inc. All rights reserved.'
+desc_file = os.path.join(os.getcwd(), 'README.rst')
+desc_content = "Application performance monitor client, which is base on tingyun platform. Agent can monitor \
+                python web framework/modules performance, such as Django, Tornado, database, external call etc.\
+                In the premise of using less resources, our agent can achieve a variety of module tracking."
+
 packages, package_data = [], {}
 root_dir = os.path.dirname(__file__)
 tingyun_dir = 'tingyun'
 if root_dir != '':
     os.chdir(root_dir)
+
+try:
+    with open(desc_file, 'r') as f:
+        desc_content = f.read()
+except Exception as _:
+    pass
 
 
 def split(dir_path, result=None):
@@ -64,9 +75,7 @@ kwargs = dict(
     name="tingyun-agent-python",
     version=version,
     description="Python application performance monitor client,It's main usage is working with python web application.",
-    long_description="Application performance monitor client, which is base on tingyun platform. Agent can monitor "
-                     "python web framework/modules performance, such as Django, Tornado, database, external call etc."
-                     "In the premise of using less resources, our agent can achieve a variety of module tracking.",
+    long_description=desc_content,
     author="tingyun.com",
     author_email="python@tingyun.com ",
     license=_copyright,

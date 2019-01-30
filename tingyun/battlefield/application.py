@@ -235,13 +235,16 @@ class Application(object):
             if config.error_collector.enabled:
                 error_trace = self.get_error_trace_data(stat)
                 external_error_trace = self.get_external_error_trace(stat)
+                exception_trace = self.get_exception_trace_data(stat)
 
                 if config.audit_mode:
                     console.info("Agent capture the error trace data %s", error_trace)
                     console.info("Agent capture the external error trace data %s", external_error_trace)
+                    console.info("Agent capture the exception data %s", exception_trace)
 
                 self._active_session.send_error_trace(error_trace)
                 self._active_session.send_external_error_trace(external_error_trace)
+                self._active_session.send_exception_trace(exception_trace)
 
             if config.action_tracer.enabled:
                 slow_action_data = stat.action_trace_data()
@@ -375,35 +378,30 @@ class Application(object):
         # disable the id mechanism
         metric_name_ids = self.metric_name_ids
         if audit_mode:
-            metric_name_ids = {"actions": {}, "apdex": {}, "components": {}, "general": {}, "errors": {}}
-
-        # if application is disabled. should send some heartbit data.
-        if not self.application_config.enabled:
-            performance = {
-                "type": "perfMetrics",
-                "timeFrom": int(last_harvest),
-                "timeTo": int(current_harvest),
-                "interval": int(current_harvest - last_harvest),
-                "actions": [],
-                "apdex": [],
-                "components": [],
-                "general": [],
-                "errors": stat.error_packets(metric_name_ids["errors"])
-            }
-
-            return performance
+            metric_name_ids = {"actions": {}, "apdex": {}, "components": {}, "general": {}, "errors": {},
+                               "exceptions": {}}
 
         performance = {
             "type": "perfMetrics",
             "timeFrom": int(last_harvest),
             "timeTo": int(current_harvest),
             "interval": int(current_harvest - last_harvest),
-            "actions": stat.action_metrics(metric_name_ids["actions"]),
-            "apdex": stat.apdex_data(metric_name_ids["apdex"]),
-            "components": stat.component_metrics(metric_name_ids["components"]),
-            "general": stat.general_trace_metric(metric_name_ids["general"]),
-            "errors": stat.error_packets(metric_name_ids["errors"]),
+            "actions": [],
+            "apdex": [],
+            "components": [],
+            "general": [],
+            "errors": stat.error_packets(metric_name_ids.get('errors', {})),
+            "exceptions": stat.exception_packets(metric_name_ids.get('exceptions', {}))
         }
+
+        # if application is disabled. should send some heartbit data.
+        if not self.application_config.enabled:
+            return performance
+
+        performance['actions'] = stat.action_metrics(metric_name_ids.get("actions", {}))
+        performance['apdex'] = stat.apdex_data(metric_name_ids.get("apdex", {}))
+        performance['components'] = stat.component_metrics(metric_name_ids.get("components", {}))
+        performance['general'] = stat.general_trace_metric(metric_name_ids.get("general", {}))
 
         if 0 != len(self._active_session.config.quantile):
             performance["config"] = {"nbs.quantile": json.dumps(self._active_session.config.quantile_org)}
@@ -424,6 +422,21 @@ class Application(object):
             error_trace = []
 
         return error_trace
+
+    def get_exception_trace_data(self, stat):
+        """
+        :param stat:
+        :return:
+        """
+        exception_trace = {
+            "type": "exceptionTraceData",
+            "exceptions": stat.exception_trace_data()
+        }
+
+        if 0 == len(exception_trace['exceptions']):
+            exception_trace = []
+
+        return exception_trace
 
     def get_external_error_trace(self, stat):
         """

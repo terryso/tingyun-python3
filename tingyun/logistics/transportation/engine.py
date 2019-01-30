@@ -71,6 +71,17 @@ class Engine(object):
         return transmitter(self.session, self.url, "send_action_trace", action_trace, self.request_param,
                            self.config.audit_mode)
 
+    def send_exception_trace(self, ex):
+        """
+        :param ex:
+        :return:
+        """
+        if not ex:
+            return
+
+        return transmitter(self.session, self.url, "send_exception_trace", ex, self.request_param,
+                           self.config.audit_mode)
+
     def send_sql_trace(self, sql_trace):
         """
         """

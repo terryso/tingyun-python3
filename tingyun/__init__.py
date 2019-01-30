@@ -1,8 +1,9 @@
+# -*- coding: utf-8 -*-
 
 # Note: alpha/beta version should not be delivered to customer
 #       only ('alpha', 'beta', 'rc', 'final') used
 #       {'alpha': 'a', 'beta': 'b', 'rc': 'c'}
-VERSION = (1, 3, 0, 'final', 0)
+VERSION = (1, 3, 2, 'final', 0)
 
 
 def get_version():

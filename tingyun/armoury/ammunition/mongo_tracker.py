@@ -27,6 +27,7 @@ class MongoTracker(Timer):
         self.port = port
         self.method = method
         self.schema = schema or "NULL"
+        self.exception = None
 
     def create_node(self):
         """
@@ -38,7 +39,7 @@ class MongoTracker(Timer):
 
         return MongoNode(method=self.method, children=self.children, start_time=self.start_time, schema=self.schema,
                          end_time=self.end_time, duration=self.duration, exclusive=self.exclusive, host=self.host,
-                         port=self.port)
+                         port=self.port, exception=self.exception)
 
     def terminal_node(self):
         return True
@@ -66,8 +67,12 @@ def mongo_trace_wrapper(wrapped, schema, method, server=None):
         else:
             host, port, schema = "Unknown", "Unknown", "Unknown"
 
-        with MongoTracker(tracker, host, port, schema, _method):
-            return wrapped(*args, **kwargs)
+        with MongoTracker(tracker, host, port, schema, _method) as mt:
+            try:
+                return wrapped(*args, **kwargs)
+            except:
+                mt.exception = tracker.record_exception(is_error=False)
+                raise
 
     def literal_wrapper(wrapped, instance, args, kwargs):
         tracker = current_tracker()
@@ -79,8 +84,12 @@ def mongo_trace_wrapper(wrapped, schema, method, server=None):
         else:
             host, port, schema = "Unknown", "Unknown", "Unknown"
 
-        with MongoTracker(tracker, host, port, schema, method):
-            return wrapped(*args, **kwargs)
+        with MongoTracker(tracker, host, port, schema, method) as mt:
+            try:
+                return wrapped(*args, **kwargs)
+            except:
+                mt.exception = tracker.record_exception(is_error=False)
+                raise
 
     if callable(method):
         return FunctionWrapper(wrapped, dynamic_wrapper)

@@ -38,6 +38,7 @@ class DatabaseTracker(Timer):
         self.host = host
         self.port = port
         self.db_name = db_name
+        self.exception = None
 
         self.stack_trace = None
         self.sql_format = None
@@ -77,8 +78,10 @@ class DatabaseTracker(Timer):
         return DatabaseNode(dbapi=self.dbapi, sql=self.sql, children=self.children, start_time=self.start_time,
                             end_time=self.end_time, duration=self.duration, exclusive=self.exclusive,
                             dbtype=self.db_type, stack_trace=self.stack_trace, sql_format=self.sql_format,
-                            connect_params=self.connect_params, cursor_params=self.cursor_params,
-                            execute_params=self.execute_params,  host=self.host, port=self.port, db_name=self.db_name)
+                            connect_params=self.connect_params, cursor_params=self.cursor_params, db_name=self.db_name,
+                            execute_params=self.execute_params,  host=self.host, port=self.port,
+                            exception=self.exception
+                            )
 
     def terminal_node(self):
         return True

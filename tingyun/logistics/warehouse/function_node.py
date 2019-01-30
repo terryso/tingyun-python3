@@ -1,10 +1,14 @@
+# -*- coding: utf-8 -*-
+
+import logging
 from collections import namedtuple
 
 from tingyun.logistics.attribution import TimeMetric, node_start_time, node_end_time
 
 
 _FunctionNode = namedtuple('_FunctionNode', ['group', 'name', 'children', 'start_time', 'end_time', 'duration',
-                                             'exclusive', 'params', 'stack_trace'])
+                                             'exclusive', 'params', 'stack_trace', 'exception'])
+console = logging.getLogger(__name__)
 
 
 class FunctionNode(_FunctionNode):
@@ -26,7 +30,7 @@ class FunctionNode(_FunctionNode):
 
     def trace_node(self, root):
         """
-        :param root: the root node of the trakcer
+        :param root: the root node of the tracker
         :return: traced node
         """
         start_time = node_start_time(root, self)
@@ -36,7 +40,14 @@ class FunctionNode(_FunctionNode):
         call_count = 1
         class_name = ""
         method_name = self.name
-        params = {"sql": "", "explainPlan": {}, "stacktrace": []}
+        params = {
+            "sql": "", "stacktrace": root.format_stack_trace(self.stack_trace or []),
+        }
+
+        # exception不存在，不能加入该key值
+        for ex in self.exception:
+            params['exception'] = root.parse_exception_detail(ex)
+
         children = []
 
         root.trace_node_count += 1
@@ -45,11 +56,5 @@ class FunctionNode(_FunctionNode):
                 break
 
             children.append(child.trace_node(root))
-
-        if self.stack_trace:
-            for line in self.stack_trace:
-                line = [line.filename, line.lineno, line.name, line.locals]
-                if len(line) >= 4 and 'tingyun' not in line[0]:
-                    params['stacktrace'].append("%s(%s:%s)" % (line[2], line[0], line[1]))
 
         return [start_time, end_time, metric_name, call_url, call_count, class_name, method_name, params, children]

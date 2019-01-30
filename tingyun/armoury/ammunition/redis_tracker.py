@@ -20,6 +20,7 @@ class RedisTrace(Timer):
         self.port = port
         self.db = db
         self.command = command
+        self.exception = None
 
     def create_node(self):
         """
@@ -31,7 +32,7 @@ class RedisTrace(Timer):
 
         return RedisNode(command=self.command, children=self.children, start_time=self.start_time, host=self.host,
                          end_time=self.end_time, duration=self.duration, exclusive=self.exclusive, port=self.port,
-                         db=self.db)
+                         db=self.db, exception=self.exception)
 
     def terminal_node(self):
         return True
@@ -56,8 +57,12 @@ def redis_trace_wrapper(wrapped, command, server=None):
         else:
             host, port, db = "Unknown", 0, 0
 
-        with RedisTrace(tracker, host, port, db, _command):
-            return wrapped(*args, **kwargs)
+        with RedisTrace(tracker, host, port, db, _command) as rt:
+            try:
+                return wrapped(*args, **kwargs)
+            except:
+                rt.exception = tracker.record_exception(is_error=False)
+                raise
 
     def literal_wrapper(wrapped, instance, args, kwargs):
         tracker = current_tracker()
@@ -69,8 +74,12 @@ def redis_trace_wrapper(wrapped, command, server=None):
         else:
             host, port, db = "Unknown", 0, 0
 
-        with RedisTrace(tracker, host, port, db, command):
-            return wrapped(*args, **kwargs)
+        with RedisTrace(tracker, host, port, db, command) as rt:
+            try:
+                return wrapped(*args, **kwargs)
+            except:
+                rt.exception = tracker.record_exception(is_error=False)
+                raise
 
     if callable(command):
         return FunctionWrapper(wrapped, dynamic_wrapper)

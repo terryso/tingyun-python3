@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 
 """This module define some user api for manually use the tingyun python agent.
 
@@ -91,3 +92,33 @@ wsgi_app_decorator = tingyun.armoury.trigger.wsgi_entrance.wsgi_application_deco
         group: the group of the function belong to. or some meaningful to you
 """
 function_trace_decorator = tingyun.armoury.ammunition.function_tracker.function_trace_decorator
+
+
+def notice_error():
+    """Description: Manually notice error
+    Usage:
+       from tingyun.api import notice_error
+
+    example:
+        def md5sum(filename):
+            try:
+                ff['d'] = 12
+            except:
+                notice_error()
+    """
+    tingyun.armoury.ammunition.tracker.record_exception(is_error=True)
+
+
+def notice_exception():
+    """Description: Manually notice exception
+    Usage:
+       from tingyun.api import notice_exception
+
+    example:
+        def md5sum(filename):
+            try:
+                ff['d'] = 12
+            except:
+                notice_exception()
+    """
+    tingyun.armoury.ammunition.tracker.record_exception(is_error=False)

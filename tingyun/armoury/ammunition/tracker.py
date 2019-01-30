@@ -15,6 +15,7 @@ from tingyun.battlefield.knapsack import knapsack
 from tingyun.logistics.warehouse.database_node import DatabaseNode
 from tingyun.logistics.warehouse.tracker_node import TrackerNode
 from tingyun.logistics.warehouse.error_node import ErrorNode, ExternalErrorNode
+from tingyun.logistics.warehouse.exception_node import ExceptionNode
 from tingyun.packages import six
 
 console = logging.getLogger(__name__)
@@ -37,6 +38,7 @@ class Tracker(object):
         self.thread_id = knapsack().current_thread_id()
 
         self.background_task = False
+        self.is_root = True  # 是否为根节点
         self.start_time = 0
         self.end_time = 0
         self.trace_interval = 0  # 距离上一次
@@ -45,7 +47,8 @@ class Tracker(object):
         self.trace_node = []
         self.async_func_trace_time = 0  # millisecond
 
-        self._errors = []
+        self._errors = ''
+        self._exception = []
         self.external_error = []
         self._custom_params = {}
         self._slow_sql_nodes = []
@@ -71,7 +74,7 @@ class Tracker(object):
         # 作为调用者存储的自己的或者被调者返回的信息
         self._trace_guid = ""  # 被调用时，若产生慢过程生成该id用于标识此次慢过程
         self._tingyun_id = ""  # 该实例自身的id
-        self._called_traced_data = ""
+        self._called_traced_data = {}
         self.called_external_id = ''
 
         # 做为被调用者，存储的调用者信息
@@ -179,16 +182,24 @@ class Tracker(object):
                            http_status=self.http_status, exclusive=exclusive, children=tuple(children),
                            path=self.path, errors=self._errors, apdex_t=apdex_t, queque_time=self.queque_time,
                            custom_params=self._custom_params, request_params=request_params,
-                           trace_id=self.call_trace_id, call_external_id=self.call_external_id,
+                           trace_id=self.call_trace_id,
                            referer=self.referer, slow_sql=self._slow_sql_nodes, trace_guid=self.generate_trace_guid(),
                            trace_data=self._called_traced_data, external_error=self.external_error,
-                           trace_interval=self.trace_interval)
+                           trace_interval=self.trace_interval, is_root=self.is_root, exception=self._exception)
 
         self.proxy.record_tracker(node)
 
     def record_exception(self, exc=None, value=None, tb=None, params=None, tracker_type="WebAction",
-                         ignore_errors=[]):
-        """ record the exception for trace
+                         ignore_errors=(), is_error=True, additional_msg=''):
+        """每个url错误只会有一个，无论记录多少次，但异常可以有多个
+        :param exc:
+        :param value:
+        :param tb:
+        :param params:
+        :param tracker_type:
+        :param ignore_errors:
+        :param is_error: 用于区分错误和异常
+        :param additional_msg: 用于区分错误和异常
         :return:
         """
         if not self._settings or not self._settings.error_collector.enabled:
@@ -201,51 +212,68 @@ class Tracker(object):
             console.warning("None exception is got. skip it now. %s, %s, %s", exc, value, tb)
             return
 
-        if self.http_status in self._settings.error_collector.ignored_status_codes:
-            console.debug("ignore the status code %s", self.http_status)
-            return
+        m = value.__class__.__module__
+        name = value.__class__.__name__
+        fullname = '%s:%s' % (m, name) if m else name
 
-        # 'True' - ignore the error.
-        # 'False'- record the error.
-        # ignore status code and maximum error number filter will be done in data engine because of voiding repeat count
-        # method ignore_errors() is used to detect the the status code which is can not captured
-        if callable(ignore_errors):
-            should_ignore = ignore_errors(exc, value, tb, self._settings.error_collector.ignored_status_codes)
-            if should_ignore:
+        if is_error:
+            if is_error and self.http_status in self._settings.error_collector.ignored_status_codes:
+                console.debug("ignore the status code %s", self.http_status)
                 return
 
-        # think more about error occurred before deal the status code.
-        if self.http_status in self._settings.error_collector.ignored_status_codes:
-            console.debug("record_exception: ignore  error collector status code")
-            return
+            # 'True' - ignore the error.
+            # 'False'- record the error.
+            # ignore status code and maximum error number filter will be done in data engine because of
+            # voiding repeat count
+            # method ignore_errors() is used to detect the the status code which is can not captured
+            if is_error and callable(ignore_errors):
+                if ignore_errors(exc, value, tb, self._settings.error_collector.ignored_status_codes):
+                    return
 
-        module = value.__class__.__module__
-        name = value.__class__.__name__
-        fullname = '%s:%s' % (module, name) if module else name
+            # think more about error occurred before deal the status code.
+            if is_error and self.http_status in self._settings.error_collector.ignored_status_codes:
+                console.debug("record_exception: ignore  error collector status code")
+                return
 
-        request_params = self.filter_params(self.request_params)
-        if params:
-            custom_params = dict(request_params)
-            custom_params.update(params)
-        else:
-            custom_params = dict(request_params)
+            request_params = self.filter_params(self.request_params)
+            if params:
+                custom_params = dict(request_params)
+                custom_params.update(params)
+            else:
+                custom_params = dict(request_params)
 
-        try:
-            message = str(value)
-        except Exception as _:
             try:
-                # Assume JSON encoding can handle unicode.
-                message = six.text_type(value)
+                message = str(value)
             except Exception as _:
-                message = '<unprintable %s object>' % type(value).__name__
+                try:
+                    # Assume JSON encoding can handle unicode.
+                    message = six.text_type(value)
+                except Exception as _:
+                    message = '<unprintable %s object>' % type(value).__name__
 
-        stack_trace = traceback.extract_tb(tb)
-        node = ErrorNode(error_time=int(time.time()), http_status=self.http_status, error_class_name=fullname,
-                         uri=self.request_uri, thread_name=self.thread_name, message=message,
-                         stack_trace=stack_trace, request_params=custom_params, tracker_type=tracker_type,
-                         referer=self.referer)
+            stack_trace = traceback.extract_tb(tb)
+            node = ErrorNode(error_time=int(time.time()), http_status=self.http_status, error_class_name=fullname,
+                             uri=self.request_uri, thread_name=self.thread_name, message=message,
+                             stack_trace=stack_trace, request_params=custom_params, tracker_type=tracker_type,
+                             referer=self.referer)
+            self._errors = node
+        else:
+            message = getattr(value, 'message', '')
 
-        self._errors.append(node)
+            try:
+                message = str(message) if message else str(value)
+            except Exception:
+                message = ''
+
+            if additional_msg:
+                message = '%s (%s)' % (message, additional_msg[: self._settings.max_sql_hash_length])
+
+            stack_trace = traceback.extract_tb(tb) if self._settings and self._settings.exception.stack_enabled else ''
+            node = ExceptionNode(exception_time=int(time.time()), class_name=fullname, tracker_type=tracker_type,
+                                 message=message, stack_trace=stack_trace)
+            self._exception.append(node)
+
+        return node
 
     def record_external_error(self, url, error_code, http_status=0, _exception=None, request_params=None,
                               tracker_type="External", module_name="Unknown"):
@@ -285,7 +313,7 @@ class Tracker(object):
         if self.duration < self.settings.action_tracer.action_threshold:
             return None
 
-        app_id = self.call_tingyun_id[self.call_tingyun_id.find('|') + 1: ]
+        app_id = self.call_tingyun_id[self.call_tingyun_id.find('|') + 1:]
         code_time = self.duration - self.queque_time - self.db_time - self.external_time - self.redis_time - \
                     self.memcache_time - self.mongo_time
         data = {
@@ -570,3 +598,29 @@ def current_tracker():
     :return:
     """
     return knapsack().current_tracker()
+
+
+def record_exception(is_error=False):
+    """异常的对象
+    :param is_error:
+    :return:
+    """
+    tracker = current_tracker()
+    if not tracker:
+        return
+
+    ex = tracker.record_exception(is_error=is_error)
+    if not is_error and len(tracker.trace_node) > 0:
+        # relate the exception to the nearest node.
+        node = tracker.trace_node[0]
+        while node:
+            if hasattr(node, "exception") and isinstance(node.exception, list):
+                node.exception.append(ex)
+                break
+
+            if hasattr(node, 'children') and len(node.children) > 0:
+                node = node.children[0]
+            else:
+                break
+
+

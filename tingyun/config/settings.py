@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import copy
 import logging
 import os
@@ -123,6 +125,21 @@ class Naming(Settings):
         grouped_param.append(p)
         return p
 
+    def lower_param_key(self, params):
+        """transform params key to lower case
+        :param params:
+        :return:
+        """
+        new_param = {}
+        if not isinstance(params, dict):
+            console.warning("Error type of request params %s,  %s", type(params), params)
+            return new_param
+
+        for k, v in params.items():
+            new_param[str(k).lower()] = v
+
+        return new_param
+
     def naming_web_action(self, method, uri, url_param, header_param, cookie_param):
         """ entrance for naming web action with rules
         :param cookie_param:
@@ -132,6 +149,11 @@ class Naming(Settings):
         :param uri: uri of current request
         :return:
         """
+        uri = str(uri).lower()
+        url_param = self.lower_param_key(url_param)
+        header_param = self.lower_param_key(header_param)
+        cookie_param = self.lower_param_key(cookie_param)
+
         if uri in self.cached:
             return self.cached.get(uri)
 
@@ -153,7 +175,7 @@ class Naming(Settings):
 
             # match the url rule, url case insensitive
             match_func = self.match_type[str(rule["match"]["match"])]
-            if not match_func(uri, rule["match"]["value"], re.IGNORECASE):
+            if not match_func(uri, rule["match"]["value"]):
                 continue
 
             # match the parameters rule,not support body parameters, when match the value, the case sensitive
@@ -163,7 +185,8 @@ class Naming(Settings):
             for params in rule["match"]['params']:
                 assert isinstance(params, dict)
 
-                src_value = param_type.get(str(params['type'])).get(params["name"], "")
+                # param case insensitive
+                src_value = param_type.get(str(params['type'])).get(str(params["name"]).lower(), "")
                 match_func = self.match_type[str(params["match"])]
 
                 if not match_func(src_value, params["value"]):
@@ -188,11 +211,13 @@ class Naming(Settings):
                     tmp = [uri_section[int(ux) - 1] for ux in uri_rules if int(ux) <= len(uri_section)]
                     named_metric.append("/".join(tmp))
 
-            named_metric.append("?")
             grouped_param = []
             self.naming_url_parameters(rule["split"]["urlParams"], url_param, grouped_param)
             self.naming_url_parameters(rule["split"]["headerParams"], header_param, grouped_param)
             self.naming_url_parameters(rule["split"]["cookieParams"], cookie_param, grouped_param)
+            if len(grouped_param) > 0:
+                named_metric.append("?")
+
             named_metric.append("&".join(grouped_param))
 
             if rule['split']['method']:
@@ -215,6 +240,10 @@ class MQ(Settings):
     pass
 
 
+class TyException(Settings):
+    pass
+
+
 _settings = Settings()
 _settings.transaction_tracer = TransactionTracerSettings()
 _settings.error_collector = ErrorCollectorSettings()
@@ -222,6 +251,7 @@ _settings.action_tracer = ActionTracerSettings()
 _settings.rum = RumTraceSettings()
 _settings.naming = Naming([])
 _settings.mq = MQ
+_settings.exception = TyException()
 
 # configure file
 _settings.x_tingyun_id = "%s;c=1;x=%s;e=%s;s=%s"
@@ -262,7 +292,7 @@ _settings.transaction_tracer.enabled = False
 # internal use constance
 _settings.shutdown_timeout = float(os.environ.get("TINGYUN_AGENT_SHUTDOWN_TIMEOUT", 2.5))
 _settings.startup_timeout = float(os.environ.get("TINGYUN_AGENT_STARTUP_TIMEOUT", 0.0))
-_settings.data_version = '1.2.0'
+_settings.data_version = '1.4.0'
 _settings.agent_version = get_version()
 _settings.data_report_timeout = 15.0
 _settings.stack_trace_count = 30  # used to limit the depth of action tracer stack
@@ -277,7 +307,7 @@ _settings.external_url_params_captured = {}
 # set the default value for it.
 _settings.action_tracer.enabled = True
 _settings.action_tracer.action_threshold = 2 * 1000  # 2s
-_settings.action_tracer.top_n = 48
+_settings.action_tracer.max_action_trace_per_action = 48
 _settings.action_tracer.stack_trace_threshold = 500  # 500ms
 
 _settings.action_tracer.slow_sql = True
@@ -296,14 +326,19 @@ _settings.auto_action_naming = True
 _settings.urls_captured = []
 _settings.ignored_params = []
 
+_settings.max_error_trace = 20  # exception, error, external error,共享一个阈值
 _settings.error_collector.enabled = True
 _settings.error_collector.ignored_status_codes = []
+_settings.exception.stack_enabled = False
+_settings.exception.max_type_count = 500
+_settings.exception.max_msg_character = 128
 
 _settings.apdex_t = 500
 _settings.capture_params = False
 _settings.quantile = []
 _settings.quantile_org = []
 _settings.min_quantile_length = 4
+_settings.max_sql_hash_length = 1024  # 1k
 
 
 # mq consumer
@@ -387,6 +422,7 @@ def apply_config_setting(settings_object, name, value):
         try:
             value = [int(v) for v in value.strip().split(",")]
         except Exception as err:
+            value = []
             console.warning("got invalid ignore status code %s, errors %s", value, err)
     elif fields[0] == "ignored_status_codes" and not value:
         value = []
@@ -397,6 +433,7 @@ def apply_config_setting(settings_object, name, value):
         try:
             value = [re.compile(r"%s" % v) for v in value.strip().split("\n")]
         except Exception as err:
+            value = []
             console.warning("compile re url failed, %s, %s", value, err)
     elif fields[0] == "urls_captured" and not value:
         value = []

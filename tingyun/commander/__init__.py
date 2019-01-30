@@ -38,7 +38,7 @@ class Dispatcher(object):
         if command is None:
             print("Support commands are:  ")
 
-            for name, cmd in self.commands.iteritems():
+            for name, cmd in self.commands.items():
                 print("    %s %s" % (cmd.name, cmd.options))
         else:
             print("Command Usage:")

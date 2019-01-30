@@ -7,9 +7,10 @@
 import re
 import logging
 
+from tingyun.logistics.object_name import callable_name
 from tingyun.armoury.ammunition.tracker import current_tracker
 from tingyun.armoury.ammunition.database_tracker import DatabaseTracker
-from tingyun.armoury.ammunition.function_tracker import FunctionTracker, wrap_function_trace
+from tingyun.armoury.ammunition.function_tracker import wrap_function_trace, FunctionTracker
 
 try:
     import urlparse
@@ -212,7 +213,10 @@ def detect(module):
             :kwargs:
             :return:
             """
-            return self.cursor.fetchone(*args, **kwargs)
+            tracker = current_tracker()
+
+            with FunctionTracker(tracker, callable(self.cursor.fetchone)):
+                return self.cursor.fetchone(*args, **kwargs)
 
         def fetchmany(self, *args, **kwargs):
             """we do not capture the metric of execute result. this is small time used
@@ -220,7 +224,10 @@ def detect(module):
             :kwargs:
             :return:
             """
-            return self.cursor.fetchmany(*args, **kwargs)
+            tracker = current_tracker()
+
+            with FunctionTracker(tracker, callable(self.cursor.fetchone)):
+                return self.cursor.fetchmany(*args, **kwargs)
 
         def fetchall(self, *args, **kwargs):
             """this operation maybe spend more time. this is small time used
@@ -229,7 +236,10 @@ def detect(module):
             :kwargs:
             :return:
             """
-            return self.cursor.fetchall(*args, **kwargs)
+            tracker = current_tracker()
+
+            with FunctionTracker(tracker, callable(self.cursor.fetchone)):
+                return self.cursor.fetchall(*args, **kwargs)
 
         def execute(self, sql, *args, **kwargs):
             """
@@ -243,8 +253,12 @@ def detect(module):
                 return self.cursor.execute(sql, *args, **kwargs)
 
             with DatabaseTracker(tracker, sql, dbtype, module, self.connect_params, self.cursor_params,
-                                 (args, kwargs), host=self.host, port=self.port, db_name=self.db_name):
-                return self.cursor.execute(sql, *args, **kwargs)
+                                 (args, kwargs), host=self.host, port=self.port, db_name=self.db_name) as dt:
+                try:
+                    return self.cursor.execute(sql, *args, **kwargs)
+                except:
+                    dt.exception = tracker.record_exception(is_error=False, additional_msg=sql)
+                    raise
 
         def executemany(self, sql, *args, **kwargs):
             """
@@ -257,8 +271,13 @@ def detect(module):
             if not tracker:
                 return self.cursor.executemany(sql, *args, **kwargs)
 
-            with DatabaseTracker(tracker, sql, dbtype, module, host=self.host, port=self.port, db_name=self.db_name):
-                return self.cursor.executemany(sql, *args, **kwargs)
+            with DatabaseTracker(tracker, sql, dbtype, module, host=self.host,
+                                 port=self.port, db_name=self.db_name) as dt:
+                try:
+                    return self.cursor.executemany(sql, *args, **kwargs)
+                except:
+                    dt.exception = tracker.record_exception(is_error=False, additional_msg=sql)
+                    raise
 
         def callproc(self, procname, *args, **kwargs):
             """
@@ -271,9 +290,13 @@ def detect(module):
             if not tracker:
                 return self.cursor.callproc(procname, *args, **kwargs)
 
-            with DatabaseTracker(tracker, 'CALL %s' % procname, dbtype, module, host=self.host, port=self.port,
-                                 db_name=self.db_name):
-                return self.cursor.callproc(procname, *args, **kwargs)
+            with DatabaseTracker(tracker, 'CALLPROC %s' % procname, dbtype, module, host=self.host, port=self.port,
+                                 db_name=self.db_name) as dt:
+                try:
+                    return self.cursor.callproc(procname, *args, **kwargs)
+                except:
+                    dt.exception = tracker.record_exception(is_error=False)
+                    raise
 
     class TingYunConnection(object):
 
@@ -322,8 +345,12 @@ def detect(module):
                 return self.connection.commit()
 
             with DatabaseTracker(tracker, 'COMMIT', dbtype, module, host=self.host, port=self.port,
-                                 db_name=self.db_name):
-                return self.connection.commit()
+                                 db_name=self.db_name) as dt:
+                try:
+                    return self.connection.commit()
+                except:
+                    dt.exception = tracker.record_exception(is_error=False)
+                    raise
 
         def rollback(self):
             """
@@ -334,8 +361,12 @@ def detect(module):
                 return self.connection.rollback()
 
             with DatabaseTracker(tracker, 'ROLLBACK', dbtype, module, host=self.host, port=self.port,
-                                 db_name=self.db_name):
-                return self.connection.rollback()
+                                 db_name=self.db_name) as dt:
+                try:
+                    return self.connection.rollback()
+                except:
+                    dt.exception = tracker.record_exception(is_error=False)
+                    raise
 
     class DatabaseWrapper(object):
 
@@ -350,7 +381,6 @@ def detect(module):
             :return:
             """
             self.connect_instance = self.connect(*args, **kwargs)
-
             return TingYunConnection(self.connect_instance, (args, kwargs))
 
     # Check if module is already wrapped

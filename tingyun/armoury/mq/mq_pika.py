@@ -69,8 +69,7 @@ def mq_produce_trace_wrapper(wrapped):
 
         with MQTrace(tracker, vendor, name_type, host, port, byte, name, publish_headers, role,
                      ('BlockingChannel', 'publish'), external_id):
-            with FunctionTracker(tracker, callable_name(wrapped)):
-                return wrapped(exchange, routing_key, body, properties, *_args, **_kwargs)
+            return wrapped(exchange, routing_key, body, properties, *_args, **_kwargs)
 
     return FunctionWrapper(wrapped, dynamic_wrapper)
 
@@ -123,14 +122,13 @@ def callback_wrapper(wrapped, instance, args, kwargs):
     exceptions = None
     with MQTrace(tracker, vendor, name_type, host, port, sys.getsizeof(body), method.exchange or method.routing_key,
                  receive_headers, role, ('', wrapped.__name__), None):
-        with FunctionTracker(tracker, callable_name(wrapped)):
-            try:
-                result = wrapped(*args, **kwargs)
-                tracker.deal_response("200 ok", {})
-            except Exception as err:  # Catch all
-                tracker.record_exception(*sys.exc_info())
-                tracker.deal_response("500 error", {})
-                exceptions = err
+        try:
+            result = wrapped(*args, **kwargs)
+            tracker.deal_response("200 ok", {})
+        except Exception as err:  # Catch all
+            tracker.record_exception(*sys.exc_info())
+            tracker.deal_response("500 error", {})
+            exceptions = err
 
     # 不在web应用内
     if not is_web:

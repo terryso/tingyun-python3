@@ -24,7 +24,7 @@ def process_header(tracker, headers):
         return
 
     tingyun_ids = tracker._tingyun_id.split("|")
-    if len(tingyun_ids) < 2:
+    if tingyun_ids < 2:
         console.debug("tingyun id is not satisfied, if this continue please contact us.")
         return
 

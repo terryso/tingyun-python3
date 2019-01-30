@@ -4,6 +4,7 @@
 """
 
 import time
+import json
 import random
 import logging
 
@@ -13,7 +14,6 @@ from tingyun.armoury.ammunition.tracker import current_tracker
 from tingyun.logistics.basic_wrapper import FunctionWrapper, wrap_object
 
 console = logging.getLogger(__name__)
-
 
 # defined error type for trace the external request errors.
 MALFORMED_URL_ERROR_CODE = 900
@@ -31,6 +31,7 @@ class ExternalTrace(Timer):
     """define the external trace common api.
 
     """
+
     def __init__(self, tracker, library, url, params=None, external_id=None):
         super(ExternalTrace, self).__init__(tracker)
 
@@ -40,7 +41,8 @@ class ExternalTrace(Timer):
         self.protocol = "http"
         self.protocol = "https" if "https" in url else self.protocol
         self.protocol = "thrift" if "thrift" in url else self.protocol
-        self.external_id =  external_id
+        self.external_id = external_id
+        self.exception = None
 
         signed_param = []
         for p in self.params:
@@ -57,7 +59,7 @@ class ExternalTrace(Timer):
 
         return ExternalNode(library=self.library, url=self.url, children=self.children, protocol=self.protocol,
                             start_time=self.start_time, end_time=self.end_time, duration=self.duration,
-                            exclusive=self.exclusive, external_id=self.external_id)
+                            exclusive=self.exclusive, external_id=self.external_id, exception=self.exception)
 
     def terminal_node(self):
         return True
@@ -91,28 +93,42 @@ def external_trace_wrapper(wrapped, library, url, params=None, exception_wrapper
         else:
             external_id, _args, _kwargs = None, args, kwargs
 
-        with ExternalTrace(tracker, library, _url, kwargs, external_id):
+        with ExternalTrace(tracker, library, _url, kwargs, external_id) as et:
             if not callable(params):
-                if callable(exception_wrapper):
-                    return exception_wrapper(wrapped, _url, params, *_args, **_kwargs)
+                try:
+                    if callable(exception_wrapper):
+                        return exception_wrapper(wrapped, _url, params, *_args, **_kwargs)
 
-                return wrapped(*args, **kwargs)
+                    return wrapped(*args, **kwargs)
+                except:
+                    et.exception = tracker.record_exception(is_error=False, additional_msg=_url)
+                    raise
             else:
-                if callable(exception_wrapper):
-                    ret = exception_wrapper(wrapped, _url, _kwargs.get("params"), *_args, **_kwargs)
-                else:
-                    ret = wrapped(*_args, **_kwargs)
+                try:
+                    if callable(exception_wrapper):
+                        ret = exception_wrapper(wrapped, _url, _kwargs.get("params"), *_args, **_kwargs)
+                    else:
+                        ret = wrapped(*_args, **_kwargs)
+                except:
+                    et.exception = tracker.record_exception(is_error=False, additional_msg=_url)
+                    raise
 
                 try:
                     # for requests/urllib3
+                    cross_data = None
                     if hasattr(ret, 'headers'):
-                        tracker._called_traced_data = eval(ret.headers.get("X-Tingyun-Tx-Data", '{}'))
+                        cross_data = json.loads(ret.headers.get("X-Tingyun-Tx-Data", '{}'))
                         console.debug("Get cross trace data with requests/urllib3, %s", tracker._called_traced_data)
 
                     # for httplib2, note: the httplib2 will trans the upper case to lower case
                     if isinstance(ret, tuple):
-                        tracker._called_traced_data = eval(ret[0].get("x-tingyun-tx-data", '{}'))
+                        cross_data = json.loads(ret[0].get("x-tingyun-tx-data", '{}'))
                         console.debug("Get cross trace data with httplib2, %s", tracker._called_traced_data)
+
+                    if cross_data and isinstance(cross_data, dict):
+                        tracker._called_traced_data[external_id] = cross_data
+                    elif cross_data:
+                        console.warning("Illegal cross data %s", cross_data)
                 except Exception as err:
                     console.debug(err)
 
@@ -124,8 +140,12 @@ def external_trace_wrapper(wrapped, library, url, params=None, exception_wrapper
         if tracker is None:
             return wrapped(*args, **kwargs)
 
-        with ExternalTrace(tracker, library, url, kwargs):
-            return wrapped(*args, **kwargs)
+        with ExternalTrace(tracker, library, url, kwargs) as et:
+            try:
+                return wrapped(*args, **kwargs)
+            except:
+                et.exception = tracker.record_exception(is_error=False)
+                raise
 
     if callable(url):
         return FunctionWrapper(wrapped, dynamic_wrapper)

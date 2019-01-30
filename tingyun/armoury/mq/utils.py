@@ -26,6 +26,7 @@ def retrieve_tracker(headers, vendor='RabbitMQ'):
         environ = {}
 
     tracker = Tracer(proxy_instance(), environ, vendor)
+    tracker.is_root = False
     tracker.start_work()
 
     if tracker.settings and not tracker.settings.mq.enabled:

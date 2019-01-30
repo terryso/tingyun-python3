@@ -11,7 +11,7 @@ from tingyun.logistics.attribution import TimeMetric, node_start_time, node_end_
 
 console = logging.getLogger(__name__)
 _MemcacheNode = namedtuple('_MemcacheNode', ['command', 'children', 'start_time', 'end_time', 'duration', 'exclusive',
-                                             'host', 'port'])
+                                             'host', 'port', 'exception'])
 
 
 class MemcacheNode(_MemcacheNode):
@@ -49,16 +49,18 @@ class MemcacheNode(_MemcacheNode):
         :param root: the root node of the tracker
         :return: traced node
         """
-        command = str(self.command).upper()
+        command = "Memcached:%s" % self.command
         params = {}
         children = []
         call_count = 1
         class_name = ""
-        method_name = root.name
         root.trace_node_count += 1
         start_time = node_start_time(root, self)
         end_time = node_end_time(root, self)
         metric_name = 'Memcached/%s:%s/%s' % (self.host, self.port, command)
-        call_url = metric_name
+
+        # exception不存在，不能加入该key值
+        if self.exception:
+            params['exception'] = root.parse_exception_detail(self.exception)
 
         return [start_time, end_time, metric_name, "", call_count, class_name, command, params, children]

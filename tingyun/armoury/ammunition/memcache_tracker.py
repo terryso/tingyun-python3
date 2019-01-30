@@ -18,6 +18,7 @@ class MemcacheTrace(Timer):
         self.host = host
         self.port = port
         self.command = command
+        self.exception = None
 
     def create_node(self):
         tracker = current_tracker()
@@ -25,7 +26,8 @@ class MemcacheTrace(Timer):
             tracker.memcache_time = self.duration
 
         return MemcacheNode(command=self.command, children=self.children, start_time=self.start_time, host=self.host,
-                            end_time=self.end_time, duration=self.duration, exclusive=self.exclusive, port=self.port)
+                            end_time=self.end_time, duration=self.duration, exclusive=self.exclusive, port=self.port,
+                            exception=self.exception)
 
     def terminal_node(self):
         return True
@@ -50,8 +52,12 @@ def memcached_trace_wrapper(wrapped, server, command):
         else:
             _command = command(*args, **kwargs)
 
-        with MemcacheTrace(tracker, host, port, _command):
-            return wrapped(*args, **kwargs)
+        with MemcacheTrace(tracker, host, port, _command) as mt:
+            try:
+                return wrapped(*args, **kwargs)
+            except:
+                mt.exception = tracker.record_exception(is_error=False)
+                raise
 
     def literal_wrapper(wrapped, instance, args, kwargs):
         tracker = current_tracker()
@@ -63,8 +69,12 @@ def memcached_trace_wrapper(wrapped, server, command):
         else:
             host, port = "Unknown", 0
 
-        with MemcacheTrace(tracker, host, port, command):
-            return wrapped(*args, **kwargs)
+        with MemcacheTrace(tracker, host, port, command) as mt:
+            try:
+                return wrapped(*args, **kwargs)
+            except:
+                mt.exception = tracker.record_exception(is_error=False)
+                raise
 
     if callable(command):
         return FunctionWrapper(wrapped, dynamic_wrapper)

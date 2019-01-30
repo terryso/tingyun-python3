@@ -48,7 +48,7 @@ class Timer(object):
         self.end_time = time.time()
         if self.end_time < self.start_time:
             self.end_time = self.start_time
-            console.warn("end time is less than start time.")
+            console.warning("end time is less than start time.")
 
         self.duration = int((self.end_time - self.start_time) * 1000)
         self.exclusive += self.duration

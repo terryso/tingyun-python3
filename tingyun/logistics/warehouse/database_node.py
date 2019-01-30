@@ -13,7 +13,7 @@ _SlowSqlNode = namedtuple('_SlowSqlNode', ['duration', 'path', 'request_uri', 's
                                            'stack_trace', 'connect_params', 'cursor_params', 'execute_params',
                                            "start_time"])
 _DatabaseNode = namedtuple('_DatabaseNode', ['dbapi', 'sql', 'children', 'start_time', 'end_time', 'duration',
-                                             'exclusive', 'stack_trace', 'sql_format', 'connect_params',
+                                             'exclusive', 'stack_trace', 'sql_format', 'connect_params', 'exception',
                                              'cursor_params', 'execute_params', "dbtype", 'host', 'port', 'db_name'])
 console = logging.getLogger(__name__)
 
@@ -126,6 +126,13 @@ class DatabaseNode(_DatabaseNode):
         metric_name = "Database%s/%s:%s%%2F%s%%2FUnknown/%s" % (dbtype, self.host, self.port, self.db_name, operation)
         call_url = ""
         host, port, db_name = self.host, self.port, self.db_name
+        sql = self.formatted or ''
+        # Note, use local setting only.
+        _settings = global_settings()
+
+        # exception不存在，不能加入该key值
+        if self.exception:
+            params['exception'] = root.parse_exception_detail(self.exception)
 
         if self.table:
             metric_name = "Database %s/%s:%s%%2F%s%%2F%s/%s" % (dbtype, host, port, db_name, self.table, operation)
@@ -133,9 +140,7 @@ class DatabaseNode(_DatabaseNode):
             console.debug("Can not get table for operate `%s` to `%s`", operation, dbtype)
 
         if self.formatted:
-            # Note, use local setting only.
-            _settings = global_settings()
-            params['sql'] = self.formatted
+            params['sql'] = sql
 
             if _settings.action_tracer.log_sql:
                 console.info("Log sql is opened. sql upload is disabled, sql sentence is %s", self.formatted)
@@ -145,10 +150,7 @@ class DatabaseNode(_DatabaseNode):
                 params['explainPlan'] = self.explain_plan
 
             if self.stack_trace:
-                for line in self.stack_trace:
-                    line = [line.filename, line.lineno, line.name, line.locals]
-                    if len(line) >= 4 and 'tingyun' not in line[0]:
-                        params['stacktrace'].append("%s(%s:%s)" % (line[2], line[0], line[1]))
+                params['stacktrace'] = root.format_stack_trace(self.stack_trace)
 
         return [start_time, end_time, metric_name, call_url, call_count, class_name, method_name, params, children]
 
@@ -158,7 +160,7 @@ class DatabaseNode(_DatabaseNode):
         """
         dbtype = r" %s" % self.dbtype
         request_uri = root.request_uri.replace("%2F", "/")
-        operation = str(self.operation).upper() or 'CALL'
+        operation = str(self.operation).upper() or 'CALLPROC'
         host, port, db_name = self.host, self.port, self.db_name
         metric_name = "Database%s/%s:%s%%2F%s%%2FUnknown/%s" % (dbtype, host, port, db_name, operation)
 
@@ -169,5 +171,5 @@ class DatabaseNode(_DatabaseNode):
 
         return SlowSqlNode(duration=self.duration, path=root.path, request_uri=request_uri, metric=metric_name,
                            start_time=int(self.start_time), sql=self.sql, sql_format=self.sql_format, dbapi=self.dbapi,
-                           stack_trace=self.stack_trace, connect_params=self.connect_params,
+                           stack_trace=root.format_stack_trace(self.stack_trace), connect_params=self.connect_params,
                            cursor_params=self.cursor_params, execute_params=self.execute_params)

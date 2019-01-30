@@ -116,7 +116,7 @@ class Dispatcher(object):
                 # so extend the time appropriately according to the last report situation
                 now = time.time()
                 while self.__next_harvest <= now:
-                    self.__next_harvest += 60.0
+                    self.__next_harvest += self._config.dataSentInterval
 
                 self._harvest_shutdown.wait(self.__next_harvest - now)
 
@@ -149,8 +149,6 @@ class Dispatcher(object):
         for name, application in six.iteritems(self._applications):
 
             # if application is not register to server. test it in application.
-            #
-
             try:
                 console.debug("Harvest data for application %s", name)
 

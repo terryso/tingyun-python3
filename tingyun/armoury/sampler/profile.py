@@ -65,7 +65,7 @@ class ProfileTraceNode(object):
         if not self.has_child():
             return 'unknown'
 
-        return self.children.keys()[0]
+        return list(self.children.keys())[0]
 
 
 class Profile(object):
@@ -192,7 +192,7 @@ class Profile(object):
                 root.non_runnable = 1
 
             if root.has_child():
-                root = root.children.values()[0]
+                root = list(root.children.values())[0]
             else:
                 break
 

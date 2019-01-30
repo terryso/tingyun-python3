@@ -1,5 +1,5 @@
+# -*- coding: utf-8 -*-
 """this module implement the metric attribution definition
-
 """
 from collections import namedtuple
 
@@ -8,8 +8,12 @@ Metric = namedtuple('Metric', ['name', 'scope'])
 ApdexMetric = namedtuple('ApdexMetric', ['name', 'satisfying', 'tolerating', 'frustrating', 'apdex_t'])
 TimeMetric = namedtuple('TimeMetric', ['name', 'scope', 'duration', 'exclusive'])
 
+#  该对象仅用于ExternalTransaction时，特殊的数据对象使用
+ExternalTimeMetric = namedtuple('TimeMetric', ['name', 'scope', 'duration', 'exclusive', 'packets'])
+
 # for error trace
 TracedError = namedtuple('TracedError', ['error_filter_key', 'tracker_type', "trace_data"])
+TracedException = namedtuple('TracedException', ['filter_key', "trace_data", "tracker_type"])
 TracedExternalError = namedtuple("TracedExternalError", ['error_filter_key', "trace_data", 'tracker_type',
                                                          "status_code"])
 
