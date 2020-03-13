@@ -298,6 +298,18 @@ def detect(module):
                     dt.exception = tracker.record_exception(is_error=False)
                     raise
 
+        def __enter__(self):
+            return self
+
+        def __exit__(self, type, value, traceback):
+            # Close instead of passing through to avoid backend-specific behavior
+            # (#17671). Catch errors liberally because errors in cleanup code
+            # aren't useful.
+            try:
+                self.cursor.close()
+            except self.db.Database.Error:
+                pass
+
     class TingYunConnection(object):
 
         def __init__(self, connection, params=None):
